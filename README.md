@@ -56,5 +56,5 @@ ReplayPC Usage:
 ```
 
 
-The Windows version of ReplayPC is built using MSVC++ 6.0 on a Win2K system by Matt Linehan who can be reached at ~~mlinehan@users.sourceforge.net~~. To build the Windows version of ReplayPC, in Microsoft Visual C++, create a new "Win32 Console Application" called ReplayPC. Tell the wizzard that you want an empty project. Add the ReplayPC.cpp source file to the project and build it.
+The Windows version of ReplayPC is built using MSVC++ 6.0 on a Win2K system by Matt Linehan who can be reached at ~~mlinehan@users.sourceforge.net~~. To build the Windows version of ReplayPC, in Microsoft Visual C++, create a new "Win32 Console Application" called ReplayPC. Tell the wizard that you want an empty project. Add the ReplayPC.cpp source file to the project and build it.
 
