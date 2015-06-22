@@ -5,7 +5,17 @@ This utility is Linux, Win32 and Mac OS X native, and is being developed with an
 
 This is an archive of an old project from 2002 from sourceforge (https://sourceforge.net/projects/replaypc/) that I'm importing here in case it vanishes there someday.
 
-This was originally authored by Matthew Linehan, Todd Larason and myself
+Project Contributors:
+Contributor|Role
+--------|-------
+Matthew Linehan|Project Leader for 0.1 - 0.3
+Todd Larason|Unix / Research / Project Leader for 0.4.0
+Lee Thompson|Windows / Research
+David Noel|Mac
+Randy Saunders|Mac
+King of Bayonne|-c Option
+
+
 
 #
 
