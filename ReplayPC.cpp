@@ -15,7 +15,9 @@
 // if not, write to the Free Software Foundation, Inc., 59 Temple Place - Suite 330, 
 // Boston, MA  02111-1307, USA.
 // 
-// Please submit patches and sugestions to mlinehan@columbus.rr.com 
+// Please submit patches and sugestions to replaypc-developer@lists.sourceforge.net
+// For the latest version of ReplayPC, visit the Project ReplayPC home page at
+// replaypc.sourceforge.net
 // 
 // Release history: 
 // v0.1 01/01/2002
@@ -38,25 +40,69 @@
 //   mlinehan some other minor misc adjustments that slip my mind at the moment
 //
 // v0.2b 01/03/2002
-//   Lee Thompson did a two character change in GetReplayGuide correcting a bug when pruning off ASCII header
+//   Lee Thompson did a two character change in GetReplayGuide correcting a bug when pruning 
+//     off ASCII header
 //
-//  As allways, happy hunting! ML Jan 3, 2001
-// 
+// V0.3 01/09/2002
+// David Noel and Tod Larason supplied patches to make ReplayPC compile under Linux
+// Randy Saunders disovered that on OS-X the symbol __APPLE__ is set
+// Matt Linehan removed the mpg fixup code, 4K mpg files don't need fixed. (removed -er option)
+// Todd Larason submited added -o option to pump feteched mpgs to stdout
+// Matt Linehan added -o support to -g guid option and -c command option
+// Matt Linehan replaced marching dots with bytes received report
+// Matt Linehan fixed the #####ATTACHED_FILE_END##### guidefile bug.
+// David Noel sugested printing the  bytes received report less often (once per chunk now)
+// David Noel corrected _APPLE_ to __APPLE__
+//
 //********************************************************************************************** 
-#include <stdio.h> 
-#include <conio.h> 
-#include <stdlib.h> 
-#include <time.h>
-#include <winsock2.h> 
+#include <stdio.h>                  //cross platform includes
+#include <stdlib.h>                 //cross platform includes
+#include <string.h>                 //cross platform includes
+#include <time.h>                   //cross platform includes
 
-//Tell the linker to link with the winsock library 
-#pragma comment(lib, "ws2_32.lib") 
+#ifdef __APPLE__
+#define __unix__                    //for our purposes, OS-X is Unix
+#endif
+
+#ifdef __unix__
+#include <unistd.h>                 //Unix Specific Includes
+#include <sys/socket.h>             //Unix Specific Includes
+#include <netinet/in.h>             //Unix Specific Includes
+#include <arpa/inet.h>              //Unix Specific Includes
+#endif
+
+#ifdef _WIN32
+#include <winsock2.h>               //Windows Specific Include
+#include <conio.h>                  //for PRESSANYKEY
+#pragma comment(lib, "ws2_32.lib")  //Tell MSC to link to Winsock Library
+#endif
+
 
 
 //********************************************************************************************** 
 // Global Variables and Defines 
 //********************************************************************************************** 
+//Macros to convert windows specific stuff to Unix equivilants
+#ifdef __unix__                     
+#define SOCKET int                      //In Unix, Sockets are int (aka file descriptor)
+#define INVALID_SOCKET (-1)             //In Unix, socket() returns -1 on error
+#define closesocket(s) close(s)         //In Unix, sockets are file descriptors
+#define STARTWINSOCK                    //In Unix, there is not a winsock to start
+#define STOPWINSOCK                     //In Unix, there is not a winsock to stop
+#define PRESSANYKEY                     //In Unix, we don't do this
+#endif
 
+#ifdef _WIN32
+//Macros to start windows sockets
+#define STARTWINSOCK WSADATA wd; if(WSAStartup(MAKEWORD(2,2 ),&wd )==-1)  \
+                     {perror("Error: Main(): WSAStartup()"); exit(-1);} 
+
+//Macros to stop windows sockets
+#define STOPWINSOCK  WSACleanup(); 
+
+//Macro for Press any key to continue
+#define PRESSANYKEY printf("Press any key to continue.\n"); getch();
+#endif
 
 
 //********************************************************************************************** 
@@ -64,9 +110,9 @@
 //********************************************************************************************** 
 void GetDir(char *IPAddress); 
 void GetStatus(char *IPAddress, char *FileName); 
-void GetMpgFile(char *IPAddress, char *FileName, int RawFlag); 
-void GetReplayGuide(char *IPAddress); 
-void DoCommand(char *IPAddress, char *Command); 
+void GetMpgFile(char *IPAddress, char *FileName, int ToStdOut);
+void GetReplayGuide(char *IPAddress, int ToStdOut); 
+void DoCommand(char *IPAddress, char *Command, int ToStdOut); 
 int RecieveHTTPData(SOCKET s, char* Buffer, int Len, char Terminator); 
 
 
@@ -75,8 +121,6 @@ int RecieveHTTPData(SOCKET s, char* Buffer, int Len, char Terminator);
 //********************************************************************************************** 
 int main(int argc, char* argv[]) 
 { 
-    WSADATA wsaData;            //Winsock Garbage 
-    LPVOID  Dummy       = NULL; //Winsock Garbage 
     int     i = 0;              //temp counter 
 
     //Operational Parameters
@@ -86,7 +130,7 @@ int main(int argc, char* argv[])
     int     fGetDir     = 0;    //Flag, true if were getting a /video directory
     int     fGetStat    = 0;    //Flag, true if were getting a file status report
     int     fGetFile    = 0;    //Flag, true if were getting a file 
-    int     fRaw        = 0;    //Flag, true if were extracting the file, RAW mode
+    int     fStdOut     = 0;    //Flag, true if output to stdout instead of a file
     int     fGetGuide   = 0;    //Flag, true if were getting the guide file 
     int     fDoCommand  = 0;    //Flag, true if were sending a command 
 
@@ -94,7 +138,7 @@ int main(int argc, char* argv[])
     if(argc < 3) 
     { 
         printf("\n");
-        printf("ReplayPC V0.2, built on " __DATE__ " " __TIME__ "\n"); 
+        printf("ReplayPC V0.3, built on " __DATE__ " " __TIME__ "\n"); 
         printf("Copyright (C) 2002 Matthew T. Linehan\n");
         printf("ReplayPC comes with ABSOLUTELY NO WARRANTY;\n"); 
         printf("This is free software, and you are welcome to redistribute it under\n");
@@ -102,25 +146,30 @@ int main(int argc, char* argv[])
         printf("\n");
         printf("USAGE:\n");
         printf("   %s <4k-ipaddress> <options>\n", argv[0]); 
-        printf("   -d              Print directory listing (ls command)\n");
-        printf("   -s <filename>   Print file status (fstat command)\n");
-        printf("   -e  <filename>  Retrieve MPG File Named filename, Write to Disk\n"); 
-        printf("   -er <filename>  Raw Extract named file, Write to Disk, No MPG Fixup\n"); 
-        printf("   -g              Retrieve Replay Guide File, Write to Disk\n"); 
-        printf("   -c <\"command\"> Send a command string using HTTP GET\n"); 
+        printf("   -d             Print directory listing (ls command)\n");
+        printf("   -s <filename>  Print file status (fstat command)\n");
+        printf("   -e <filename>  Retrieve MPG File Named filename, write to disk\n"); 
+        printf("   -g             Retrieve Replay Guide File, write to disk\n"); 
+        printf("   -c <\"command\"> Send a command string using HTTP GET, write to disk\n");
+        printf("   -o             Send retrieved file to stdout instead of disk\n");
         printf("\n");
-        printf("EXAMPLE:\n");
+
+        //make clueless windoze users press any key to continue
+        PRESSANYKEY
+
+        printf("EXAMPLES:\n");
         printf("   %s 192.168.0.4 -d\n", argv[0]); 
         printf("   %s 192.168.0.4 -s  1009609197.mpg\n", argv[0]); 
         printf("   %s 192.168.0.4 -e  1009609197.mpg\n", argv[0]); 
-        printf("   %s 192.168.0.4 -er 1009609197.ndx\n", argv[0]); 
         printf("   %s 192.168.0.4 -g\n", argv[0]); 
         printf("   %s 192.168.0.4 -c \"/httpfs-readfile?pos=0&name=\"/Video/1009760397.mpg\"\"\n", argv[0]); 
+        printf("   %s 192.168.0.4 -o -e  1009609197.mpg | playstream\n", argv[0]); 
+        printf("   %s 192.168.0.4 -o -g | interpretguide\n", argv[0]); 
+        printf("   %s 192.168.0.4 -o -c <httpfs_cmd> | <httpfs_cmd_parser>\n", argv[0]); 
         printf("\n");
 
-
-        printf("** Press any Key to Continue **\n");
-        getch();
+        //make clueless windoze users press any key to continue
+        PRESSANYKEY
         return -1; 
     } 
 
@@ -146,13 +195,16 @@ int main(int argc, char* argv[])
             else if(argv[i][1] == 'e') 
             { 
                 fGetFile = 1; 
-                if (argv[i][2] == 'r') fRaw=1;
                 if(((i+1)<argc) && (argv[i+1][0] != '-')) 
                 { 
                     i++; 
                     FileName = argv[i]; 
                 } 
             } 
+            else if(argv[i][1] == 'o')
+            {
+                fStdOut = 1;
+            }
             else if(argv[i][1] == 'g') 
             { 
                 fGetGuide = 1; 
@@ -173,22 +225,18 @@ int main(int argc, char* argv[])
         } 
     } 
 
-    //fire up windows sockets version 2.2 
-    if(WSAStartup(MAKEWORD( 2, 2 ), &wsaData ) == -1) 
-    { 
-        perror("Error: Main(): WSAStartup()"); 
-        exit(-1); 
-    } 
+    //fire up windows sockets version 2.2 (On Windows Only)
+    STARTWINSOCK
 
     //Do as we are instructed 
     if (fGetDir)    GetDir(IPAddress);
     if (fGetStat)   GetStatus(IPAddress, FileName); 
-    if (fGetFile)   GetMpgFile(IPAddress, FileName, fRaw); 
-    if (fGetGuide)  GetReplayGuide(IPAddress); 
-    if (fDoCommand) DoCommand(IPAddress, Command); 
+    if (fGetFile)   GetMpgFile(IPAddress, FileName, fStdOut); 
+    if (fGetGuide)  GetReplayGuide(IPAddress, fStdOut); 
+    if (fDoCommand) DoCommand(IPAddress, Command, fStdOut); 
 
-    //shutdown windows sockets 
-    WSACleanup( ); 
+    //shutdown windows sockets (On Windows Only) 
+    STOPWINSOCK
 
     //cleanup and exit 
     return 0; 
@@ -241,7 +289,7 @@ void GetDir(char *IPAddress)
     } 
 
     //Tell the user were up to something 
-    printf("[Directory Listing of /Video...]\n"); 
+    fprintf(stderr, "[Directory Listing of /Video...]\n"); 
 
     //Send the request for the file 
     send(s, ReqDir, strlen(ReqDir), 0); 
@@ -268,7 +316,7 @@ void GetDir(char *IPAddress)
             chunklen -= RecieveHTTPData(s, Buffer, sizeof(Buffer), 0x0A); 
             FirstTime=0; 
             sscanf(Buffer, "%d", &i);
-            if (i != 0) printf ("ReplayTV returned error code %d.\n", i);
+            if (i != 0) fprintf (stderr, "ReplayTV returned error code %d.\n", i);
         } 
 
         //If the chunk lenght is nonzero 
@@ -283,17 +331,17 @@ void GetDir(char *IPAddress)
                 chunklen -= len; 
 
                 //if the file name is numeric
-                if (sscanf(Buffer, "%d", &TimeStamp))
+                if ((TimeStamp = (time_t)strtoul(Buffer, NULL, 10)) > 0)
                 {
                     //Round Timestamp to nearst minute, then print listing
                     TimeStamp = ((TimeStamp+30)/60)*60;
                     sscanf(Buffer, "%s", &FileName);
-                    printf("%s\tRecorded on %s", FileName, asctime(localtime(&TimeStamp)));
+                    fprintf(stdout, "%s\tRecorded on %s", FileName, asctime(localtime(&TimeStamp)));
                 }
                 else
                 {
-                    sscanf(Buffer, "%s", &FileName);
-                    printf("%s\n", FileName);
+                    sscanf(Buffer, "%s", FileName);
+                    fprintf(stdout, "%s\n", FileName);
                }
 
             }while(chunklen); 
@@ -307,7 +355,7 @@ void GetDir(char *IPAddress)
     }while(!Done); 
 
     //all done, cleanup as we leave 
-    printf("\n[End of listing.]\n"); 
+    fprintf(stderr, "\n[End of listing.]\n"); 
     closesocket(s); 
 }
 
@@ -356,7 +404,7 @@ void GetStatus(char *IPAddress, char *FileName)
     } 
 
     //Tell the user were up to something 
-    printf("[File stats of %s...]\n", FileName); 
+    fprintf(stderr, "[File stats of %s...]\n", FileName); 
 
     //Send the request for the status
     send(s, ReqStat, strlen(ReqStat), 0); 
@@ -384,7 +432,7 @@ void GetStatus(char *IPAddress, char *FileName)
             chunklen -= RecieveHTTPData(s, Buffer, sizeof(Buffer), 0x0A); 
             FirstTime=0;
             sscanf(Buffer, "%d", &i);
-            if (i != 0) printf ("ReplayTV returned error code %d.\n", i);
+            if (i != 0) fprintf (stderr, "ReplayTV returned error code %d.\n", i);
         } 
 
         //If the chunk lenght is nonzero 
@@ -397,7 +445,7 @@ void GetStatus(char *IPAddress, char *FileName)
                 //Recieve a line of LF terminated data 
                 len = RecieveHTTPData(s, Buffer, chunklen, 0x0A); 
                 chunklen -= len; 
-                printf(Buffer);
+                fprintf(stdout, Buffer);
 
             }while(chunklen); 
 
@@ -410,7 +458,7 @@ void GetStatus(char *IPAddress, char *FileName)
     }while(!Done); 
 
     //all done, cleanup as we leave 
-    printf("\n[End of status.]\n"); 
+    fprintf(stderr, "\n[End of status.]\n"); 
     closesocket(s); 
 }
 
@@ -418,7 +466,7 @@ void GetStatus(char *IPAddress, char *FileName)
 //********************************************************************************************** 
 // Retrieve the 4K Replay Guide and write to disk 
 //********************************************************************************************** 
-void GetReplayGuide(char *IPAddress) 
+void GetReplayGuide(char *IPAddress, int ToStdOut) 
 { 
     SOCKET  s;                      //A socket request the guide data with 
     struct  sockaddr_in adr_dst;    //Destination IPAddress structure 
@@ -426,6 +474,8 @@ void GetReplayGuide(char *IPAddress)
     int     len, chunklen,i;        //a temp for dealing with the buffer 
     FILE    *fileptr;               //a normal file pointer 
     int     Done, FirstTime;        //temps 
+    int     BytesReceived=0;        //count bytes as they come
+    int     FileLength=0;           //length of guide file
 
     //A HHTP request for the ReplayGuide File 
     char ReqGuide[]=
@@ -449,11 +499,18 @@ void GetReplayGuide(char *IPAddress)
     } 
 
     //Open the file we will use to store the guide data 
-    if ((fileptr = fopen("Guide.dat", "wb")) == NULL) 
-    { 
-        perror("Error: GetGuide(): fopen()"); 
-        exit(-1); 
+    if (ToStdOut) 
+    {
+        fileptr = stdout;
     } 
+    else 
+    {
+        if ((fileptr = fopen("Guide.dat", "wb")) == NULL) 
+        { 
+            perror("Error: GetGuide(): fopen()"); 
+            exit(-1); 
+        } 
+    }
 
     //Initiate the connection to the 4K 
     if (connect(s, (struct sockaddr*)&adr_dst, sizeof(adr_dst)) == -1) 
@@ -463,7 +520,7 @@ void GetReplayGuide(char *IPAddress)
     } 
 
     //Tell the user were up to something 
-    printf("Retrieving ReplayGuide file..."); 
+    fprintf(stderr, "Retrieving ReplayGuide file...\n"); 
 
     //Send the request for the guide 
     send(s, ReqGuide, strlen(ReqGuide), 0); 
@@ -482,7 +539,6 @@ void GetReplayGuide(char *IPAddress)
         //The next line should be a chunk lengh specifier 
         len = RecieveHTTPData(s, Buffer, sizeof(Buffer), 0x0A); 
         sscanf(Buffer, "%x", &chunklen); 
-        printf("."); 
 
         //Strip the headder data that come before the guide data
         if (FirstTime) 
@@ -493,7 +549,7 @@ void GetReplayGuide(char *IPAddress)
             //Error Code on this line, 0=sucess
             chunklen -= RecieveHTTPData(s, Buffer, sizeof(Buffer), 0x0A); 
             sscanf(Buffer, "%d", &i);
-            if (i != 0) printf ("ReplayTV returned error code %d.\n", i);
+            if (i != 0) fprintf (stderr, "ReplayTV returned error code %d.\n", i);
             
             //guide_file_name=xxxxxxxxxx LF terminated
             chunklen -= RecieveHTTPData(s, Buffer, sizeof(Buffer), 0x0A); 
@@ -502,11 +558,12 @@ void GetReplayGuide(char *IPAddress)
             chunklen -= RecieveHTTPData(s, Buffer, sizeof(Buffer), 0x0A); 
 
             //FileLength=xxxxx LF terminalted
-            chunklen -= RecieveHTTPData(s, Buffer, sizeof(Buffer), 0x0A); 
+            chunklen -= RecieveHTTPData(s, Buffer, sizeof(Buffer), 0x0A);
+            sscanf(Buffer, "FileLength=%d", &FileLength);
+            fprintf(stderr, "FileLength=%d\n", FileLength);
 
             //#####ATTACHED_FILE_START##### NULL TERMINATOR
             chunklen -= RecieveHTTPData(s, Buffer, 29, 0x00); 
-
         } 
 
         //If this chunk is non zero in length 
@@ -530,7 +587,9 @@ void GetReplayGuide(char *IPAddress)
                 } 
 
                 //write the data to disk 
+                if ((BytesReceived + len) > FileLength) len = FileLength - BytesReceived;
                 fwrite(Buffer, len, 1, fileptr); 
+                BytesReceived += len;
 
             }while(chunklen); 
 
@@ -539,11 +598,17 @@ void GetReplayGuide(char *IPAddress)
         { 
             //chunklen is zero, signifying end of transmission 
             Done=1; 
-        } 
+        }
+        
+
+        //update the progress report
+        fprintf(stderr, "\r%d bytes received", BytesReceived);
+        fflush(stderr);
+
     }while(!Done); 
 
     //all done, cleanup as we leave 
-    printf("\nDone, ReplayGuide written to [guide.dat].\n"); 
+    fprintf(stderr, "\nDone.\n"); 
     fclose(fileptr); 
     closesocket(s); 
 } 
@@ -552,7 +617,7 @@ void GetReplayGuide(char *IPAddress)
 //********************************************************************************************** 
 // Retrieve a MPG file and write it to disk 
 //********************************************************************************************** 
-void GetMpgFile(char *IPAddress, char *FileName, int RawFlag) 
+void GetMpgFile(char *IPAddress, char *FileName, int ToStdOut) 
 { 
     SOCKET  s;                      //A socket request the guide data with 
     struct  sockaddr_in adr_dst;    //Destination Address 
@@ -562,6 +627,8 @@ void GetMpgFile(char *IPAddress, char *FileName, int RawFlag)
     int     Done=0;                 //temp flag 
     int     FirstTime=0;            //another flag 
     char    ReqMpg[500];            //build the HTTP request here 
+    int     BytesReceived=0;        //count bytes as we get them
+    int     KBytesReceived=0;       //since mpg files can be biger than 2^32
 
     //build the HTTP request 
     sprintf(ReqMpg, "GET /httpfs-readfile?pos=0&name=\"/Video/%s\" HTTP/1.1\r\n", FileName); 
@@ -585,12 +652,19 @@ void GetMpgFile(char *IPAddress, char *FileName, int RawFlag)
         exit(-1); 
     } 
 
-    //Open the file we will use to store the response data 
-    if ((fileptr = fopen(FileName, "wb")) == NULL) 
-    { 
-        perror("Error: GetMpgFile(): fopen()"); 
-        exit(-1); 
+    //Open the file we will use to store the response data
+    if (ToStdOut) 
+    {
+        fileptr = stdout;
     } 
+    else 
+    {
+        if ((fileptr = fopen(FileName, "wb")) == NULL) 
+        { 
+            perror("Error: GetMpgFile(): fopen()"); 
+            exit(-1); 
+        } 
+    }
 
     //Connect to the 4K 
     if (connect(s, (struct sockaddr*)&adr_dst, sizeof(adr_dst)) == -1) 
@@ -600,8 +674,7 @@ void GetMpgFile(char *IPAddress, char *FileName, int RawFlag)
     } 
 
     //Tell the user were up to something
-    if (RawFlag) printf("Raw Output Selected. File will not be patched!\n");
-    printf("Retrieving /Video/%s...", FileName); 
+    fprintf(stderr, "Retrieving /Video/%s...\n", FileName); 
 
     //Send the request for the file 
     send(s, ReqMpg, strlen(ReqMpg), 0); 
@@ -621,14 +694,15 @@ void GetMpgFile(char *IPAddress, char *FileName, int RawFlag)
         //This line should be a chunk lengh specifier 
         len = RecieveHTTPData(s, Buffer, sizeof(Buffer), 0x0A); 
         sscanf(Buffer, "%x", &chunklen); 
-        printf("."); 
 
         //Error Code Line
         if (FirstTime)
         {
+            //Only do this in the first chunk
+            FirstTime=0;
             chunklen -= RecieveHTTPData(s, Buffer, sizeof(Buffer), 0x0A); 
             sscanf(Buffer, "%d", &i);
-            if (i != 0) printf ("\nReplayTV returned error code %d.\n", i);
+            if (i != 0) fprintf (stderr, "\nReplayTV returned error code %d.\n", i);
         }
 
         //If the chunk lenght is nonzero 
@@ -651,79 +725,13 @@ void GetMpgFile(char *IPAddress, char *FileName, int RawFlag)
                     chunklen = 0; 
                 } 
 
-                //mpg file fixup from extract_rtv! 
-                //Don't do this if the RawFlag is set
-                //Only do this on the first chunk
-                if (FirstTime && !RawFlag) 
-                { 
-                    // Write a small pack that includes a system header and a program stream map 
-                    // This fixes incompatibility issues with Womble MPEG-2 VCR and MProbe and 
-                    // makes the MPEG-2 files much more MPEG-2 compliant which apparently they 
-                    // don't need to be for the ReplayTV box to play them back. 
-                    unsigned long rate_bound; 
-                    unsigned char pack_hdr[] = {0x00, 0x00, 0x01, 0xba,             // pack_start_code 
-                                                0x44, 0x00, 0x04, 0x00, 0x04, 0x01, // system_clock_reference_base 
-                                                0x00, 0x6f, 0xe7,                   // program_mux_rate 
-                                                0xf8};                              // pack_stuffing_length 
-                    unsigned char sys_hdr[] =  {0x00, 0x00, 0x01, 0xbb,             // system_header_start_code 
-                                                0x00, 0x0c,                         // header_length 
-                                                0x80, 0x37, 0xf3,                   // rate_bound 
-                                                0x06,                               // audio_bound/CSPS_flag 
-                                                0xe1,                               // system_audio_lock_flag/system_video_lock_flag/video_bound 
-                                                0xff,                               // packet_rate_restriction_flag/reserved 
-                                                0xe0,                               // stream_id 
-                                                0xe0, 0xe0,                         // P-STD_buffer_bound_scale/P-STD_buffer_size_bound 
-                                                0xc0,                               // stream_id 
-                                                0xc0, 0x20};                        // P-STD_buffer_bound_scale/P-STD_buffer_size_bound 
-                    unsigned char psmap[] =    {0x00, 0x00, 0x01,                   // packet_start_code_prefix 
-                                                0xbc,                               // map_stream_id 
-                                                0x00, 0x12,                         // program_stream_map_length 
-                                                0xe1,                               // current_next_indicator/program_stream_map_version 
-                                                0xff,                               // reserved 
-                                                0x00, 0x00,                         // program_stream_info_length 
-                                                0x00, 0x08,                         // elementary_stream_map_length 
-                                                0x02,                               // stream_type 
-                                                0xe0,                               // elementary_stream_id 
-                                                0x00, 0x00,                         // elementary_stream_info_length 
-                                                0x03,                               // stream_type 
-                                                0xc0,                               // elementary_stream_id 
-                                                0x00, 0x00,                         // elementary_stream_info_length 
-                                                0xaa, 0x58, 0x7b, 0xf9};            // CRC_32 
-
-
-                    // Make sure this is really an MPEG-2 file before we mess around with it 
-                    if ((Buffer[0]!=0x00) || (Buffer[1]!=0x00) || (Buffer[2]!=0x01) || (Buffer[3]!=(char)0xba)) 
-                    { 
-                        fprintf(stderr,"Error: Not an MPG file! %X %X %X %X\n", (int) Buffer[0], (int) Buffer[1], (int) Buffer[2], (int) Buffer[3]); 
-                        exit(-1); 
-                    } 
-
-                    // Copy the first pack header from the Replay's MPEG file 
-                    // but don't copy the pack_stuffing_length since we don't 
-                    // want any stuffing_bytes 
-                    memcpy(pack_hdr, Buffer, sizeof(pack_hdr) - 1); 
-                    fwrite(pack_hdr,1,sizeof(pack_hdr),fileptr); 
-
-                    // Set the system header's rate_bound to the same as the 
-                    // pack header's program_mux_rate. Since this is a CBR 
-                    // MPEG-2 file we're dealing with, these values can be 
-                    // the same 
-                    rate_bound = (pack_hdr[10] << 16 | pack_hdr[11] << 8 | pack_hdr[12]) >> 2; 
-                    rate_bound = (rate_bound << 1) | 0x800001; 
-                    sys_hdr[6] = (unsigned char)(rate_bound >> 16); 
-                    sys_hdr[7] = (unsigned char)(rate_bound >> 8); 
-                    sys_hdr[8] = (unsigned char)(rate_bound & 0xff); 
-                    fwrite(sys_hdr,1,sizeof(sys_hdr),fileptr); 
-
-                    //Finally, write the program stream map 
-                    fwrite(psmap,1,sizeof(psmap),fileptr); 
-                } 
-
-                //clear the First Chunk Flag
-                FirstTime=0; 
-
                 //write the data to disk 
                 fwrite(Buffer, len, 1, fileptr); 
+                BytesReceived += len;
+
+                //roll bytes into Kbytes
+                KBytesReceived += BytesReceived / 1000;
+                BytesReceived %= 1000;
 
             }while(chunklen); 
 
@@ -733,12 +741,15 @@ void GetMpgFile(char *IPAddress, char *FileName, int RawFlag)
             //zero lengh chunk marks end of transmission 
             Done=1; 
         } 
+
+        //update the progress report
+        fprintf(stderr, "\r%d KB received", KBytesReceived);
+        fflush(stderr);
+
     }while(!Done); 
 
     //all done, cleanup as we leave 
-    printf("\n");
-    if (RawFlag) printf("Raw Output Selected. File was not patched!\n");
-    printf("Done, output written to [%s]\n", FileName); 
+    fprintf(stderr, "\nDone.\n"); 
     fclose(fileptr); 
     closesocket(s); 
 } 
@@ -747,7 +758,7 @@ void GetMpgFile(char *IPAddress, char *FileName, int RawFlag)
 //********************************************************************************************** 
 // Issue a command to the 4K using HTTP GET 
 //********************************************************************************************** 
-void DoCommand(char *IPAddress, char *Command) 
+void DoCommand(char *IPAddress, char *Command, int ToStdOut) 
 { 
     SOCKET  s;                      //A socket request the guide data with 
     struct  sockaddr_in adr_dst;    //Destination IPAddress structure 
@@ -755,6 +766,7 @@ void DoCommand(char *IPAddress, char *Command)
     int     len, chunklen;          //a temp for dealing with the buffer 
     FILE    *fileptr;               //a normal file pointer 
     int     Done;                   //temps 
+    int     BytesReceived=0;        //count bytes as they come
 
     //A HHTP request for the command, in two parts 
     char Req1[]=    "GET "; 
@@ -781,11 +793,18 @@ void DoCommand(char *IPAddress, char *Command)
     } 
 
     //Open the file we will use to store the result data 
-    if ((fileptr = fopen("result.dat", "wb")) == NULL) 
-    { 
-        perror("Error: DoCommand(): fopen()"); 
-        exit(-1); 
+    if (ToStdOut) 
+    {
+        fileptr = stdout;
     } 
+    else 
+    {
+        if ((fileptr = fopen("result.dat", "wb")) == NULL) 
+        { 
+            perror("Error: DoCommand(): fopen()"); 
+            exit(-1); 
+        } 
+    }
 
     //Initiate the connection to the 4K 
     if (connect(s, (struct sockaddr*)&adr_dst, sizeof(adr_dst)) == -1) 
@@ -795,9 +814,9 @@ void DoCommand(char *IPAddress, char *Command)
     } 
 
     //Tell the user were up to something 
-    printf("Sending command \"%s\"...", Command); 
+    fprintf(stderr, "Sending command \"%s\"...\n", Command); 
 
-    //Send the request for the guide 
+    //Send the request user specified command
     send(s, Req1, strlen(Req1), 0); 
     send(s, Command, strlen(Command), 0); 
     send(s, Req2, strlen(Req2), 0); 
@@ -815,7 +834,6 @@ void DoCommand(char *IPAddress, char *Command)
         //The next line should be a chunk lengh specifier 
         len = RecieveHTTPData(s, Buffer, sizeof(Buffer), 0x0A); 
         sscanf(Buffer, "%x", &chunklen); 
-        printf("."); 
 
         //If this chunk is non zero in length 
         if (chunklen) 
@@ -824,7 +842,7 @@ void DoCommand(char *IPAddress, char *Command)
             len=0; 
             do 
             { 
-                if (chunklen > sizeof(Buffer)) 
+                if (chunklen > sizeof(Buffer))
                 { 
                     //Recieve sizeof(Buffer) bytes of binary data 
                     len = RecieveHTTPData(s, Buffer, sizeof(Buffer), 0x00); 
@@ -839,6 +857,7 @@ void DoCommand(char *IPAddress, char *Command)
 
                 //write the data to disk 
                 fwrite(Buffer, len, 1, fileptr); 
+                BytesReceived += len;
 
             }while(chunklen); 
 
@@ -849,10 +868,14 @@ void DoCommand(char *IPAddress, char *Command)
             Done=1; 
         } 
 
+        //update the progress report
+        fprintf(stderr, "\r%d bytes received", BytesReceived);
+        fflush(stderr);
+
     }while(!Done); 
 
     //all done, cleanup as we leave 
-    printf("\nDone, command output written to [result.dat].\n"); 
+    fprintf(stderr, "\nDone.\n"); 
     fclose(fileptr); 
     closesocket(s); 
 } 
@@ -913,3 +936,4 @@ int RecieveHTTPData(SOCKET s, char *Buffer, int Len, char Terminator)
     //Return number of bytes coppied 
     return(DstIndex); 
 }
+
