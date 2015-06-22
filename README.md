@@ -7,7 +7,11 @@ This is an archive of an old project from 2002 from sourceforge (https://sourcef
 
 This was originally authored by Matthew Linehan, Todd Larason and myself
 
+#
 
+~~Please submit patches and sugestions to replaypc-developer@lists.sourceforge.net For the latest version of ReplayPC, visit the Project ReplayPC home page at replaypc.sourceforge.net~~
+
+```
 ReplayPC Usage:
    replaypc <4k_ipaddress> <options>
    -d             Print directory listing (ls command)
@@ -49,9 +53,8 @@ ReplayPC Usage:
    The -o option can be used to divert output from disk to stdout.
      ReplayPc 192.168.0.4 -c "/httpfs-readfile&name="/Video/1009760397.mpg""	
      ReplayPc 192.168.0.4 -o -c <httpfs_cmd> | <httpfs_cmd_parser>	
+```
 
 
-The Windows version of ReplayPC is built using MSVC++ 6.0 on a Win2K system by Matt Linehan. 
-
-To build the Windows version of ReplayPC, in Microsoft Visual C++, create a new "Win32 Console Application" called ReplayPC. Tell the wizzard that you want an empty project. Add the ReplayPC.cpp source file to the project and build it.
+The Windows version of ReplayPC is built using MSVC++ 6.0 on a Win2K system by Matt Linehan who can be reached at ~~mlinehan@users.sourceforge.net~~. To build the Windows version of ReplayPC, in Microsoft Visual C++, create a new "Win32 Console Application" called ReplayPC. Tell the wizzard that you want an empty project. Add the ReplayPC.cpp source file to the project and build it.
 
