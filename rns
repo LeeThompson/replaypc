@@ -1,0 +1,106 @@
+#!/usr/bin/perl -w
+
+use Switch;
+use LWP::UserAgent;
+
+my $my_serial  = "RTV4080K1AA5000149";
+my $my_zipcode = "97206";
+my $my_country = "US";
+my $my_headend = "OR36575";
+
+my $rns_base = "http://rns.replaytv.net/cgi-bin/2.0";
+
+sub url_login {
+    my ($action, @args) = @_;
+    my ($attempts, $total);
+
+    switch ($action) {
+	case "nightly"  { $attempts = shift @args || 1;
+			  $total    = shift @args || 1;
+			  return "login.pl?action=$action&attempts=$attempts&total=$total";
+			}
+	else            { die "Invalid or unsupported login action" }
+    }
+}
+
+sub url_getmrauth {
+    my ($serial) = shift @_ || $my_serial;
+    # If-None-Match: "1-1"
+    return "getmrauth.pl?serial=$serial";
+}
+
+sub url_getzipcode2 {
+    my ($zipcode) = shift @_ || $my_zipcode;
+    my ($country) = shift @_ || $my_country;
+
+    return "getzipcode2.pl?zipcode=$zipcode&country=$country";
+}
+
+sub url_getheadend {
+    my ($headend) = shift @_ || $my_headend;
+    my ($country) = shift @_ || $my_country;
+
+    return "getheadend.pl?headend=$headend&country=$country";
+}
+
+sub url_getcg2 {
+    my $date 	  = shift @_ || die "getcg2 needs a date";
+    my $tmsid 	  = shift @_ || die "getcg2 needs at least one channel";
+    my $timestamp = shift @_ || "0";
+    my $url 	  = "getcg2.pl?A${date}C${tmsid}Z$timestamp";
+    
+    while (defined($tmsid = shift @_)) {
+	$timestamp = shift @_;
+	if (defined($timestamp)) {
+	    $timestamp =~ s/^\+/P/;
+	    $timestamp =~ s/^\-/M/;
+	    if ($timestamp !~ m/^[MPZ]/) {
+		$timestamp = "Z$timestamp";
+	    }
+	}
+	else {
+	    $timestamp = "P0";
+	}
+	$url .= "_$tmsid$timestamp";
+    }
+    return $url;
+}
+
+
+sub main {
+    my ($command, @args) = @_;
+    my ($ua, $req, $res);
+
+    my %commands = (
+		    login     	=> \&url_login,
+		    getmrauth 	=> \&url_getmrauth,
+		    getzipcode2 => \&url_getzipcode2,
+		    getheadend  => \&url_getheadend,
+		    getcg2      => \&url_getcg2,
+		   );
+
+    if (!defined($commands{$command})) {
+	print STDERR "Usage: \n";
+	foreach (sort keys %commands) {
+	    print "\t$_\n";
+	}
+	exit -1;
+    }
+
+    $url = $commands{$command}->(@args);
+    $req = new HTTP::Request GET => "$rns_base/$url";
+    $req->authorization_basic("RNSBasic", "A7x*8-Qt");
+
+    $ua = new LWP::UserAgent;
+    $res = $ua->request($req);
+
+    if ($res->is_success) {
+	print $res->content;
+    } else {
+	die "Failed, sorry";
+    }
+# wget --server-response --http-user="RNSBasic" --http-passwd="A7x*8-Qt" 'http://rns.replaytv.net/cgi-bin/2.0/getsw.pl?version=520410600&serial=RTV4080K1AA5000149'
+}
+
+main(@ARGV);
+

@@ -1,0 +1,263 @@
+Microsoft Developer Studio Workspace File, Format Version 6.00
+# WARNING: DO NOT EDIT OR DELETE THIS WORKSPACE FILE!
+
+###############################################################################
+
+Project: "ALL"=.\ALL.dsp - Package Owner=<4>
+
+Package=<5>
+{{{
+}}}
+
+Package=<4>
+{{{
+    Begin Project Dependency
+    Project_Dep_Name buildndx
+    End Project Dependency
+    Begin Project Dependency
+    Project_Dep_Name buildndxtester
+    End Project Dependency
+    Begin Project Dependency
+    Project_Dep_Name crypttest
+    End Project Dependency
+    Begin Project Dependency
+    Project_Dep_Name dumpcg2
+    End Project Dependency
+    Begin Project Dependency
+    Project_Dep_Name dumpguide
+    End Project Dependency
+    Begin Project Dependency
+    Project_Dep_Name dumpheadend
+    End Project Dependency
+    Begin Project Dependency
+    Project_Dep_Name dumpzipcode2
+    End Project Dependency
+    Begin Project Dependency
+    Project_Dep_Name findGOPs
+    End Project Dependency
+    Begin Project Dependency
+    Project_Dep_Name httpfs
+    End Project Dependency
+    Begin Project Dependency
+    Project_Dep_Name markcommercial
+    End Project Dependency
+    Begin Project Dependency
+    Project_Dep_Name ndxdump
+    End Project Dependency
+    Begin Project Dependency
+    Project_Dep_Name rddns
+    End Project Dependency
+    Begin Project Dependency
+    Project_Dep_Name ReplayPC
+    End Project Dependency
+    Begin Project Dependency
+    Project_Dep_Name unprotect
+    End Project Dependency
+    Begin Project Dependency
+    Project_Dep_Name rtvguide
+    End Project Dependency
+}}}
+
+###############################################################################
+
+Project: "ReplayPC"=.\ReplayPC.dsp - Package Owner=<4>
+
+Package=<5>
+{{{
+}}}
+
+Package=<4>
+{{{
+    Begin Project Dependency
+    Project_Dep_Name httpfs
+    End Project Dependency
+}}}
+
+###############################################################################
+
+Project: "buildndx"=.\buildndx.dsp - Package Owner=<4>
+
+Package=<5>
+{{{
+}}}
+
+Package=<4>
+{{{
+}}}
+
+###############################################################################
+
+Project: "buildndxtester"=.\buildndxtester.dsp - Package Owner=<4>
+
+Package=<5>
+{{{
+}}}
+
+Package=<4>
+{{{
+}}}
+
+###############################################################################
+
+Project: "crypttest"=.\crypttest.dsp - Package Owner=<4>
+
+Package=<5>
+{{{
+}}}
+
+Package=<4>
+{{{
+}}}
+
+###############################################################################
+
+Project: "dumpcg2"=.\dumpcg2.dsp - Package Owner=<4>
+
+Package=<5>
+{{{
+}}}
+
+Package=<4>
+{{{
+}}}
+
+###############################################################################
+
+Project: "dumpguide"=.\dumpguide.dsp - Package Owner=<4>
+
+Package=<5>
+{{{
+}}}
+
+Package=<4>
+{{{
+}}}
+
+###############################################################################
+
+Project: "dumpheadend"=.\dumpheadend.dsp - Package Owner=<4>
+
+Package=<5>
+{{{
+}}}
+
+Package=<4>
+{{{
+}}}
+
+###############################################################################
+
+Project: "dumpzipcode2"=.\dumpzipcode2.dsp - Package Owner=<4>
+
+Package=<5>
+{{{
+}}}
+
+Package=<4>
+{{{
+}}}
+
+###############################################################################
+
+Project: "findGOPs"=.\findGOPs.dsp - Package Owner=<4>
+
+Package=<5>
+{{{
+}}}
+
+Package=<4>
+{{{
+}}}
+
+###############################################################################
+
+Project: "httpfs"=.\httpfs.dsp - Package Owner=<4>
+
+Package=<5>
+{{{
+}}}
+
+Package=<4>
+{{{
+    Begin Project Dependency
+    Project_Dep_Name crypttest
+    End Project Dependency
+}}}
+
+###############################################################################
+
+Project: "markcommercial"=.\markcommercial.dsp - Package Owner=<4>
+
+Package=<5>
+{{{
+}}}
+
+Package=<4>
+{{{
+}}}
+
+###############################################################################
+
+Project: "ndxdump"=.\ndxdump.dsp - Package Owner=<4>
+
+Package=<5>
+{{{
+}}}
+
+Package=<4>
+{{{
+}}}
+
+###############################################################################
+
+Project: "rddns"=.\rddns.dsp - Package Owner=<4>
+
+Package=<5>
+{{{
+}}}
+
+Package=<4>
+{{{
+    Begin Project Dependency
+    Project_Dep_Name crypttest
+    End Project Dependency
+}}}
+
+###############################################################################
+
+Project: "rtvguide"=.\rtvguide.dsp - Package Owner=<4>
+
+Package=<5>
+{{{
+}}}
+
+Package=<4>
+{{{
+}}}
+
+###############################################################################
+
+Project: "unprotect"=.\unprotect.dsp - Package Owner=<4>
+
+Package=<5>
+{{{
+}}}
+
+Package=<4>
+{{{
+}}}
+
+###############################################################################
+
+Global:
+
+Package=<5>
+{{{
+}}}
+
+Package=<3>
+{{{
+}}}
+
+###############################################################################
+

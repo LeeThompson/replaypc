@@ -1,0 +1,33 @@
+Compiling ReplayPC 0.4 on Win32.
+
+OpenSSL is now required.
+
+1. Download the OpenSSL source distribution.  http://www.openssl.org
+2. Follow the OpenSSL instructions to build it, we really only care about libeay32.dll
+3. Create an 'openssl' directory under the ReplayPC project.   Copy from the OpenSSL distribution the following files:
+
+	MakeFile
+	md5.c
+	md5.h
+	md5_dgst.c
+	md5_locl.h
+	md5_one.c
+	md5s.cpp
+	md5test.c
+	libeay32.exp
+	libeay32.dll (which you compiled in step 2)
+	libeay32.lib (which you compiled in step 2)
+	
+	And the ASM subdirectory.
+
+
+
+
+To build ReplayPC 0.4:
+
+1. Open the workspace (DSW) in Visual Studio
+2. Make the project you want to compile active, it defaults to "ALL"
+3. Select the configuration (Debug or Release)
+4. Select "Rebuild All"
+5. All the binaries should now be in the "Debug" or "Release" subdirectory (depending which configuration you selected)
+
